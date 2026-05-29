@@ -214,6 +214,86 @@ ${choices_str}
   return Response.json({ score, total: choices.length, level, verdict });
 }
 
+// ====== 支付相关 ======
+async function handlePayCreate(body, env) {
+  const { bazi_str, figure, dynasty } = body;
+  const orderId = `DST-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+
+  await env.PAYMENTS.put(orderId, JSON.stringify({
+    status: "pending",
+    bazi_str: bazi_str || "",
+    figure: figure || "",
+    dynasty: dynasty || "",
+    created_at: Date.now(),
+  }), { expirationTtl: 86400 });
+
+  // 发邮件通知
+  const baseUrl = env.BASE_URL || "https://destiny.oldphoto.site";
+  const confirmUrl = `${baseUrl}/api/pay/confirm?id=${orderId}&secret=${env.ADMIN_SECRET}`;
+  await sendEmail(env, {
+    subject: `【生前是谁】新订单 ${orderId}`,
+    html: `
+      <h2>有玩家付款了！</h2>
+      <p><b>订单号：</b>${orderId}</p>
+      <p><b>八字：</b>${bazi_str}</p>
+      <p><b>匹配人物：</b>${dynasty}·${figure}</p>
+      <br>
+      <a href="${confirmUrl}" style="background:#c9a84c;color:#000;padding:12px 28px;text-decoration:none;font-size:16px;border-radius:4px;">
+        ✓ 点击确认收款
+      </a>
+      <p style="color:#999;font-size:12px;margin-top:16px;">点击后玩家页面自动揭晓答案</p>
+    `,
+  });
+
+  return Response.json({ order_id: orderId });
+}
+
+async function handlePayStatus(url, env) {
+  const orderId = url.searchParams.get("id");
+  if (!orderId) return Response.json({ status: "not_found" });
+  const raw = await env.PAYMENTS.get(orderId);
+  if (!raw) return Response.json({ status: "not_found" });
+  const order = JSON.parse(raw);
+  return Response.json({ status: order.status });
+}
+
+async function handlePayConfirm(url, env) {
+  const orderId = url.searchParams.get("id");
+  const secret  = url.searchParams.get("secret");
+  if (secret !== env.ADMIN_SECRET) {
+    return new Response("无权限", { status: 403 });
+  }
+  const raw = await env.PAYMENTS.get(orderId);
+  if (!raw) return new Response("订单不存在", { status: 404 });
+  const order = JSON.parse(raw);
+  order.status = "paid";
+  order.paid_at = Date.now();
+  await env.PAYMENTS.put(orderId, JSON.stringify(order));
+  return new Response(`<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+    <body style="font-family:sans-serif;text-align:center;padding:60px;background:#0c0a06;color:#d4c8a8">
+      <h2 style="color:#c9a84c">✓ 已确认收款</h2>
+      <p>订单号：${orderId}</p>
+      <p>玩家页面将在数秒内自动揭晓答案</p>
+    </body></html>`, { headers: { "Content-Type": "text/html;charset=utf-8" } });
+}
+
+async function sendEmail(env, { subject, html }) {
+  if (!env.RESEND_API_KEY || !env.ADMIN_EMAIL) return;
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "生前是谁 <noreply@oldphoto.site>",
+      to: env.ADMIN_EMAIL,
+      subject,
+      html,
+    }),
+  });
+}
+
 // ====== 入口 ======
 export default {
   async fetch(request, env) {
@@ -224,24 +304,31 @@ export default {
       return new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
         },
       });
     }
 
-    if (request.method === "POST") {
-      try {
-        const body = await request.json();
-        if (url.pathname === "/api/analyze")   return await handleAnalyze(body, apiKey);
-        if (url.pathname === "/api/scenarios") return await handleScenarios(body, apiKey);
-        if (url.pathname === "/api/result")    return await handleResult(body, apiKey);
-      } catch (e) {
-        return Response.json({ error: e.message }, { status: 500 });
+    try {
+      // GET 路由
+      if (request.method === "GET") {
+        if (url.pathname === "/api/pay/status")  return await handlePayStatus(url, env);
+        if (url.pathname === "/api/pay/confirm") return await handlePayConfirm(url, env);
       }
+
+      // POST 路由
+      if (request.method === "POST") {
+        const body = await request.json();
+        if (url.pathname === "/api/analyze")    return await handleAnalyze(body, apiKey);
+        if (url.pathname === "/api/scenarios")  return await handleScenarios(body, apiKey);
+        if (url.pathname === "/api/result")     return await handleResult(body, apiKey);
+        if (url.pathname === "/api/pay/create") return await handlePayCreate(body, env);
+      }
+    } catch (e) {
+      return Response.json({ error: e.message }, { status: 500 });
     }
 
-    // 其余请求交给静态资源（public/index.html）
     return env.ASSETS.fetch(request);
   },
 };

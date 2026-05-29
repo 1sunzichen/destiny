@@ -566,6 +566,36 @@
   </div>
 </div>
 
+<!-- 屏幕：支付 -->
+<div id="screen-pay" class="screen">
+  <div style="max-width:400px;width:100%;text-align:center;">
+    <p class="section-title">揭晓前世</p>
+    <div style="border:1px solid rgba(201,168,76,0.3);padding:32px;border-radius:2px;background:rgba(255,255,255,0.02);">
+      <p style="font-size:13px;color:var(--muted);letter-spacing:0.2em;margin-bottom:16px;">支付 1 元 · 解锁你的前世</p>
+      <img src="/qrcode.png" alt="收款码" style="width:200px;height:200px;object-fit:cover;border:1px solid rgba(201,168,76,0.2);" onerror="this.style.display='none'">
+      <p style="font-size:20px;color:var(--gold);letter-spacing:0.3em;margin:16px 0 4px;">¥ 1.00</p>
+      <p style="font-size:12px;color:var(--muted);">微信扫码付款</p>
+    </div>
+    <button class="btn-primary" id="btn-paid" style="margin-top:32px;width:240px;">我已付款 →</button>
+  </div>
+</div>
+
+<!-- 屏幕：等待确认 -->
+<div id="screen-waiting" class="screen">
+  <div style="max-width:400px;width:100%;text-align:center;">
+    <p class="section-title">等待确认</p>
+    <div style="border:1px solid rgba(201,168,76,0.15);padding:36px;border-radius:2px;background:rgba(255,255,255,0.02);">
+      <p style="font-size:32px;margin-bottom:24px;">⏳</p>
+      <p style="font-size:14px;color:var(--text);line-height:2;">已收到你的付款申请<br>正在确认到账，通常 5 分钟内</p>
+      <div style="margin-top:24px;padding:16px;border-top:1px solid rgba(201,168,76,0.1);">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">如长时间未揭晓，添加微信联系</p>
+        <p style="font-size:18px;color:var(--gold);letter-spacing:0.2em;">15210187668</p>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:16px;" id="waiting-order-id"></p>
+    </div>
+  </div>
+</div>
+
 <!-- 加载结果 -->
 <div id="screen-loading4" class="screen">
   <p class="loading-text">评定今生命格<span class="loading-dots"></span></p>
@@ -825,36 +855,85 @@
     nextLocked = true;
     gameState.currentScene++;
     if (gameState.currentScene >= gameState.scenarios.length) {
-      // 游戏结束，获取结果
-      showScreen("screen-loading4");
-      try {
-        const p = gameState.profile;
-        const res = await fetch("/api/result", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({
-            hero: p["人物"],
-            dynasty: p["朝代"],
-            profile: p,
-            bazi_str: gameState.bazi["全字"],
-            choices: gameState.choices,
-            score: gameState.score,
-          }),
-        });
-        const data = await res.json();
-        renderResult(data, p);
-        showScreen("screen-result");
-      } catch(e) {
-        alert("结果生成失败");
-        nextLocked = false;
-        showScreen("screen-game");
-      }
+      // 游戏结束 → 先付款
+      showScreen("screen-pay");
+      nextLocked = false;
     } else {
       renderProgress();
       renderScene(gameState.currentScene);
       nextLocked = false;
     }
   });
+
+  // ===== 付款确认 =====
+  let pollTimer = null;
+
+  document.getElementById("btn-paid").addEventListener("click", async () => {
+    const p = gameState.profile;
+    const btn = document.getElementById("btn-paid");
+    btn.disabled = true;
+    btn.textContent = "提交中...";
+    try {
+      const res = await fetch("/api/pay/create", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          bazi_str: gameState.bazi["全字"],
+          figure: p["人物"],
+          dynasty: p["朝代"],
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      gameState.orderId = data.order_id;
+      document.getElementById("waiting-order-id").textContent = `订单号：${data.order_id}`;
+      showScreen("screen-waiting");
+      startPolling(data.order_id);
+    } catch(e) {
+      btn.disabled = false;
+      btn.textContent = "我已付款 →";
+      alert("提交失败：" + e.message);
+    }
+  });
+
+  function startPolling(orderId) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/pay/status?id=${orderId}`);
+        const data = await res.json();
+        if (data.status === "paid") {
+          clearInterval(pollTimer);
+          loadResult();
+        }
+      } catch(e) {}
+    }, 3000);
+  }
+
+  async function loadResult() {
+    showScreen("screen-loading4");
+    try {
+      const p = gameState.profile;
+      const res = await fetch("/api/result", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          hero: p["人物"],
+          dynasty: p["朝代"],
+          profile: p,
+          bazi_str: gameState.bazi["全字"],
+          choices: gameState.choices,
+          score: gameState.score,
+        }),
+      });
+      const data = await res.json();
+      renderResult(data, p);
+      showScreen("screen-result");
+    } catch(e) {
+      alert("结果生成失败，请联系微信 15210187668");
+      showScreen("screen-waiting");
+    }
+  }
 
   // ===== 渲染结果 =====
   function renderResult(data, profile) {

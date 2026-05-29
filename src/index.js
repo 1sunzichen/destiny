@@ -257,6 +257,22 @@ async function handlePayStatus(url, env) {
   return Response.json({ status: order.status });
 }
 
+async function handlePayConfirmGet(url, env) {
+  const orderId = url.searchParams.get("id");
+  const secret  = url.searchParams.get("secret");
+  if (!orderId || !secret) return new Response("参数缺失", { status: 400 });
+  if (secret !== "2026")   return new Response("密码错误", { status: 403 });
+  const raw = await env.PAYMENTS.get(orderId);
+  if (!raw) return new Response("订单不存在", { status: 404 });
+  const order = JSON.parse(raw);
+  order.status = "paid";
+  order.paid_at = Date.now();
+  await env.PAYMENTS.put(orderId, JSON.stringify(order));
+  return new Response(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>确认成功</title></head><body style="font-family:sans-serif;text-align:center;padding:60px;background:#1a1a1a;color:#c9a84c"><h1>✓ 确认收款成功</h1><p>订单 ${orderId} 已标记为已支付，玩家页面自动解锁。</p></body></html>`, {
+    headers: { "Content-Type": "text/html;charset=utf-8" },
+  });
+}
+
 async function handlePayConfirm(body, env) {
   const { id: orderId, secret } = body;
   if (!orderId || !secret) return Response.json({ error: "参数缺失" }, { status: 400 });
@@ -305,7 +321,8 @@ export default {
 
     try {
       if (request.method === "GET") {
-        if (url.pathname === "/api/pay/status") return await handlePayStatus(url, env);
+        if (url.pathname === "/api/pay/status")  return await handlePayStatus(url, env);
+        if (url.pathname === "/api/pay/confirm") return await handlePayConfirmGet(url, env);
       }
 
       if (request.method === "POST") {

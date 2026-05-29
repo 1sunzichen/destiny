@@ -257,24 +257,17 @@ async function handlePayStatus(url, env) {
   return Response.json({ status: order.status });
 }
 
-async function handlePayConfirm(url, env) {
-  const orderId = url.searchParams.get("id");
-  const secret  = url.searchParams.get("secret");
-  if (secret !== env.ADMIN_SECRET) {
-    return new Response("无权限", { status: 403 });
-  }
+async function handlePayConfirm(body, env) {
+  const { id: orderId, secret } = body;
+  if (!orderId || !secret) return Response.json({ error: "参数缺失" }, { status: 400 });
+  if (secret !== env.ADMIN_SECRET) return Response.json({ error: "密码错误" }, { status: 403 });
   const raw = await env.PAYMENTS.get(orderId);
-  if (!raw) return new Response("订单不存在", { status: 404 });
+  if (!raw) return Response.json({ error: "订单不存在" }, { status: 404 });
   const order = JSON.parse(raw);
   order.status = "paid";
   order.paid_at = Date.now();
   await env.PAYMENTS.put(orderId, JSON.stringify(order));
-  return new Response(`<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-    <body style="font-family:sans-serif;text-align:center;padding:60px;background:#0c0a06;color:#d4c8a8">
-      <h2 style="color:#c9a84c">✓ 已确认收款</h2>
-      <p>订单号：${orderId}</p>
-      <p>玩家页面将在数秒内自动揭晓答案</p>
-    </body></html>`, { headers: { "Content-Type": "text/html;charset=utf-8" } });
+  return Response.json({ ok: true });
 }
 
 async function sendEmail(env, { subject, html }) {
@@ -311,19 +304,17 @@ export default {
     }
 
     try {
-      // GET 路由
       if (request.method === "GET") {
-        if (url.pathname === "/api/pay/status")  return await handlePayStatus(url, env);
-        if (url.pathname === "/api/pay/confirm") return await handlePayConfirm(url, env);
+        if (url.pathname === "/api/pay/status") return await handlePayStatus(url, env);
       }
 
-      // POST 路由
       if (request.method === "POST") {
         const body = await request.json();
-        if (url.pathname === "/api/analyze")    return await handleAnalyze(body, apiKey);
-        if (url.pathname === "/api/scenarios")  return await handleScenarios(body, apiKey);
-        if (url.pathname === "/api/result")     return await handleResult(body, apiKey);
-        if (url.pathname === "/api/pay/create") return await handlePayCreate(body, env);
+        if (url.pathname === "/api/analyze")     return await handleAnalyze(body, apiKey);
+        if (url.pathname === "/api/scenarios")   return await handleScenarios(body, apiKey);
+        if (url.pathname === "/api/result")      return await handleResult(body, apiKey);
+        if (url.pathname === "/api/pay/create")  return await handlePayCreate(body, env);
+        if (url.pathname === "/api/pay/confirm") return await handlePayConfirm(body, env);
       }
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });

@@ -593,6 +593,23 @@
       </div>
       <p style="font-size:11px;color:var(--muted);margin-top:16px;" id="waiting-order-id"></p>
     </div>
+    <!-- 管理员入口（小字，不显眼） -->
+    <p style="margin-top:40px;">
+      <button onclick="showAdminModal()" style="background:none;border:none;color:rgba(255,255,255,0.1);font-size:11px;cursor:pointer;letter-spacing:0.1em;">管理员确认</button>
+    </p>
+  </div>
+</div>
+
+<!-- 管理员密码弹窗 -->
+<div id="admin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:#1a1510;border:1px solid rgba(201,168,76,0.3);padding:32px;border-radius:4px;width:300px;text-align:center;">
+    <p style="color:var(--gold);letter-spacing:0.2em;margin-bottom:20px;">管理员验证</p>
+    <input id="admin-secret-input" type="password" placeholder="输入密码" style="width:100%;padding:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(201,168,76,0.2);color:var(--text);font-size:14px;border-radius:2px;text-align:center;margin-bottom:16px;">
+    <p id="admin-error" style="color:#b07a7a;font-size:12px;margin-bottom:12px;display:none;">密码错误</p>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button onclick="hideAdminModal()" style="padding:8px 20px;background:none;border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;border-radius:2px;">取消</button>
+      <button onclick="submitAdminConfirm()" style="padding:8px 20px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:var(--gold);cursor:pointer;border-radius:2px;">确认收款</button>
+    </div>
   </div>
 </div>
 
@@ -977,6 +994,39 @@
           <div class="recap-insight">${c.insight}</div>
         </div>`
       ).join('');
+  }
+
+  // ===== 管理员弹窗 =====
+  function showAdminModal() {
+    document.getElementById("admin-modal").style.display = "flex";
+    document.getElementById("admin-secret-input").value = "";
+    document.getElementById("admin-error").style.display = "none";
+  }
+  function hideAdminModal() {
+    document.getElementById("admin-modal").style.display = "none";
+  }
+  async function submitAdminConfirm() {
+    const secret = document.getElementById("admin-secret-input").value.trim();
+    if (!secret) return;
+    try {
+      const res = await fetch("/api/pay/confirm", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ id: gameState.orderId, secret }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        hideAdminModal();
+        clearInterval(pollTimer);
+        loadResult();
+      } else {
+        document.getElementById("admin-error").textContent = data.error || "密码错误";
+        document.getElementById("admin-error").style.display = "block";
+      }
+    } catch(e) {
+      document.getElementById("admin-error").textContent = "请求失败";
+      document.getElementById("admin-error").style.display = "block";
+    }
   }
 
   // ===== 重新开始 =====

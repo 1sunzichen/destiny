@@ -575,6 +575,10 @@
       <img src="/qrcode.png" alt="收款码" style="width:200px;height:200px;object-fit:cover;border:1px solid rgba(201,168,76,0.2);" onerror="this.style.display='none'">
       <p style="font-size:20px;color:var(--gold);letter-spacing:0.3em;margin:16px 0 4px;">¥ 1.00</p>
       <p style="font-size:12px;color:var(--muted);">微信扫码付款</p>
+      <div id="pay-order-box" style="display:none;margin-top:16px;padding:12px;background:rgba(201,168,76,0.06);border-top:1px solid rgba(201,168,76,0.15);">
+        <p style="font-size:11px;color:var(--muted);margin-bottom:4px;">转账备注请填写订单号：</p>
+        <p id="pay-order-id" style="font-size:14px;color:var(--gold);letter-spacing:0.1em;font-weight:bold;"></p>
+      </div>
     </div>
     <button class="btn-primary" id="btn-paid" style="margin-top:32px;width:240px;">我已付款 →</button>
   </div>
@@ -877,8 +881,8 @@
     nextLocked = true;
     gameState.currentScene++;
     if (gameState.currentScene >= gameState.scenarios.length) {
-      // 游戏结束 → 先付款
-      showScreen("screen-pay");
+      // 游戏结束 → 先付款（进入付款页同时创建订单）
+      await enterPayScreen();
       nextLocked = false;
     } else {
       renderProgress();
@@ -887,39 +891,44 @@
     }
   });
 
-  // ===== 付款确认 =====
+  // ===== 进入付款页：立即创建订单 =====
   let pollTimer = null;
 
-  document.getElementById("btn-paid").addEventListener("click", async () => {
+  async function enterPayScreen() {
     const p = gameState.profile;
-    const btn = document.getElementById("btn-paid");
-    btn.disabled = true;
-    btn.textContent = "提交中...";
+    showScreen("screen-pay");
     try {
       const res = await fetch("/api/pay/create", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
           bazi_str: gameState.bazi["全字"],
-          figure: p["人物"],
-          dynasty: p["朝代"],
+          figure: p["人物"] || "",
+          dynasty: p["朝代"] || "",
         }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       gameState.orderId = data.order_id;
-      document.getElementById("waiting-order-id").textContent = `订单号：${data.order_id}`;
-      if (data.confirm_url) {
-        const el = document.getElementById("waiting-confirm-url");
-        if (el) { el.href = data.confirm_url; el.textContent = data.confirm_url; el.parentElement.style.display = "block"; }
-      }
-      showScreen("screen-waiting");
-      startPolling(data.order_id);
+      gameState.confirmUrl = data.confirm_url;
+      // 付款页显示订单号
+      document.getElementById("pay-order-id").textContent = data.order_id;
+      document.getElementById("pay-order-box").style.display = "block";
     } catch(e) {
-      btn.disabled = false;
-      btn.textContent = "我已付款 →";
-      alert("提交失败：" + e.message);
+      console.error("创建订单失败：", e.message);
     }
+  }
+
+  // ===== 我已付款：跳转等待页 =====
+  document.getElementById("btn-paid").addEventListener("click", () => {
+    if (!gameState.orderId) { alert("订单创建中，请稍候..."); return; }
+    document.getElementById("waiting-order-id").textContent = `订单号：${gameState.orderId}`;
+    if (gameState.confirmUrl) {
+      const el = document.getElementById("waiting-confirm-url");
+      if (el) { el.href = gameState.confirmUrl; el.textContent = gameState.confirmUrl; el.parentElement.style.display = "block"; }
+    }
+    showScreen("screen-waiting");
+    startPolling(gameState.orderId);
   });
 
   function startPolling(orderId) {

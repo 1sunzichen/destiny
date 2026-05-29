@@ -228,7 +228,7 @@ async function handlePayCreate(body, env) {
   }), { expirationTtl: 86400 });
 
   // 发邮件通知
-  const baseUrl = env.BASE_URL || "https://destiny.oldphoto.site";
+  const baseUrl = "https://destiny.oldphoto.site";
   const confirmUrl = `${baseUrl}/api/pay/confirm?id=${orderId}&secret=${env.ADMIN_SECRET}`;
   await sendEmail(env, {
     subject: `【生前是谁】新订单 ${orderId}`,
@@ -271,16 +271,15 @@ async function handlePayConfirm(body, env) {
 }
 
 async function sendEmail(env, { subject, html }) {
-  if (!env.RESEND_API_KEY || !env.ADMIN_EMAIL) return;
   await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+      "Authorization": "Bearer re_6z8mVvJJ_8bYFXophnUMYR1zc8BfqCGtR",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       from: "生前是谁 <onboarding@resend.dev>",
-      to: env.ADMIN_EMAIL,
+      to: "777sunzichen@gmail.com",
       subject,
       html,
     }),

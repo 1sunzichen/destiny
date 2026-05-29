@@ -245,7 +245,7 @@ async function handlePayCreate(body, env) {
     `,
   });
 
-  return Response.json({ order_id: orderId });
+  return Response.json({ order_id: orderId, confirm_url: confirmUrl });
 }
 
 async function handlePayStatus(url, env) {

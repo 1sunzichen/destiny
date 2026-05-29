@@ -593,6 +593,11 @@
       </div>
       <p style="font-size:11px;color:var(--muted);margin-top:16px;" id="waiting-order-id"></p>
     </div>
+    <!-- 管理员确认链接备用（默认隐藏） -->
+    <div id="confirm-url-box" style="display:none;margin-top:16px;padding:12px;background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.15);border-radius:2px;word-break:break-all;font-size:11px;">
+      <p style="color:var(--muted);margin-bottom:6px;">管理员确认链接：</p>
+      <a id="waiting-confirm-url" href="#" target="_blank" style="color:var(--gold);text-decoration:underline;"></a>
+    </div>
     <!-- 管理员入口（小字，不显眼） -->
     <p style="margin-top:40px;">
       <button onclick="showAdminModal()" style="background:none;border:none;color:rgba(255,255,255,0.1);font-size:11px;cursor:pointer;letter-spacing:0.1em;">管理员确认</button>
@@ -904,6 +909,10 @@
       if (data.error) throw new Error(data.error);
       gameState.orderId = data.order_id;
       document.getElementById("waiting-order-id").textContent = `订单号：${data.order_id}`;
+      if (data.confirm_url) {
+        const el = document.getElementById("waiting-confirm-url");
+        if (el) { el.href = data.confirm_url; el.textContent = data.confirm_url; el.parentElement.style.display = "block"; }
+      }
       showScreen("screen-waiting");
       startPolling(data.order_id);
     } catch(e) {

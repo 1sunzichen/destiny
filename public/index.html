@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生前是谁</title>
+<style>
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #e8cc80;
+    --dark: #0c0a06;
+    --ink: #1a1510;
+    --text: #d4c8a8;
+    --muted: #7a6e56;
+    --red: #8b2020;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: "STSong", "SimSun", "Noto Serif SC", serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* 背景纹理 */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(201,168,76,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(139,32,32,0.04) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .screen { display: none; min-height: 100vh; padding: 40px 20px; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  /* ===== 屏幕1：输入 ===== */
+  .title-main {
+    font-size: clamp(36px, 8vw, 72px);
+    color: var(--gold);
+    letter-spacing: 0.3em;
+    text-align: center;
+    text-shadow: 0 0 40px rgba(201,168,76,0.3);
+    margin-bottom: 8px;
+  }
+  .title-sub {
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.5em;
+    text-align: center;
+    margin-bottom: 60px;
+  }
+  .input-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: 2px;
+    padding: 48px 40px;
+    width: min(480px, 100%);
+  }
+  .input-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .input-group { display: flex; flex-direction: column; gap: 8px; }
+  .input-group label { font-size: 12px; color: var(--muted); letter-spacing: 0.2em; }
+  .input-group input {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 2px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 18px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s;
+    width: 100%;
+  }
+  .input-group input:focus { border-color: rgba(201,168,76,0.5); }
+  .hour-note { font-size: 11px; color: var(--muted); text-align: center; margin: 4px 0 24px; }
+  .btn-primary {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #8b6914, #c9a84c);
+    border: none;
+    border-radius: 2px;
+    color: #0c0a06;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.3em;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ===== 加载 ===== */
+  #screen-loading .loading-text {
+    font-size: 18px;
+    color: var(--gold);
+    letter-spacing: 0.3em;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .loading-dots::after {
+    content: "...";
+    animation: dots 1.5s steps(4, end) infinite;
+  }
+  @keyframes dots {
+    0%,20%{content:"."} 40%{content:".."} 60%,100%{content:"..."}
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ===== 屏幕2：八字揭示 ===== */
+  .bazi-display {
+    display: flex;
+    gap: 24px;
+    margin: 32px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .pillar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .pillar-label { font-size: 11px; color: var(--muted); letter-spacing: 0.2em; }
+  .pillar-chars {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .pillar-gan, .pillar-zhi {
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 2px;
+    opacity: 0;
+    animation: fadeIn 0.6s forwards;
+  }
+  .pillar-gan { color: var(--gold); }
+  .pillar-zhi { color: var(--text); }
+  .wuxing-bar {
+    display: flex;
+    gap: 12px;
+    margin: 24px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .wx-item {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 12px;
+  }
+  .wx-name { color: var(--muted); }
+  .wx-dots { display: flex; gap: 3px; }
+  .wx-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    opacity: 0;
+    animation: fadeIn 0.4s forwards;
+  }
+  .wx-金 { background: #c0c0a0; }
+  .wx-木 { background: #5a8a3a; }
+  .wx-水 { background: #3a6a8a; }
+  .wx-火 { background: #8a3a3a; }
+  .wx-土 { background: #8a6a3a; }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* ===== 屏幕3：历史人物 ===== */
+  .figure-card {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    max-width: 800px;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .avatar-img {
+    width: 200px; height: 260px;
+    object-fit: cover;
+    border: 1px solid rgba(201,168,76,0.3);
+    filter: sepia(0.3);
+    display: block;
+  }
+  .avatar-placeholder {
+    width: 200px; height: 260px;
+    border: 1px solid rgba(201,168,76,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 64px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.02);
+  }
+  .avatar-frame {
+    position: absolute; inset: -6px;
+    border: 1px solid rgba(201,168,76,0.15);
+    pointer-events: none;
+  }
+  .figure-info { flex: 1; min-width: 260px; }
+  .figure-name {
+    font-size: 40px;
+    color: var(--gold);
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .figure-meta {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    margin-bottom: 24px;
+  }
+  .info-block {
+    border-left: 2px solid rgba(201,168,76,0.3);
+    padding-left: 16px;
+    margin-bottom: 16px;
+  }
+  .info-label { font-size: 11px; color: var(--muted); letter-spacing: 0.2em; margin-bottom: 4px; }
+  .info-value { font-size: 14px; color: var(--text); line-height: 1.7; }
+  .match-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border: 1px solid rgba(201,168,76,0.4);
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 0.2em;
+    margin-bottom: 20px;
+  }
+
+  /* ===== 屏幕4：场景游戏 ===== */
+  .scene-header {
+    text-align: center;
+    margin-bottom: 32px;
+    width: 100%;
+    max-width: 700px;
+  }
+  .scene-progress {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .progress-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(201,168,76,0.2);
+    transition: background 0.3s;
+  }
+  .progress-dot.done { background: var(--gold); }
+  .progress-dot.current { background: var(--gold-light); box-shadow: 0 0 8px rgba(201,168,76,0.5); }
+  .scene-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 2px;
+    padding: 36px;
+    max-width: 700px;
+    width: 100%;
+  }
+  .scene-tag {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.3em;
+    margin-bottom: 12px;
+  }
+  .scene-context {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+  }
+  .scene-moment {
+    font-size: 16px;
+    line-height: 1.9;
+    margin-bottom: 24px;
+    color: var(--text);
+  }
+  .scene-question {
+    font-size: 14px;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    margin-bottom: 20px;
+  }
+  .choices { display: flex; flex-direction: column; gap: 12px; }
+  .choice-btn {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 2px;
+    padding: 16px 20px;
+    text-align: left;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .choice-btn:hover:not(:disabled) {
+    border-color: rgba(201,168,76,0.4);
+    background: rgba(201,168,76,0.05);
+  }
+  .choice-btn.selected-correct {
+    border-color: #5a8a3a;
+    background: rgba(90,138,58,0.1);
+  }
+  .choice-btn.selected-wrong {
+    border-color: #8a3a3a;
+    background: rgba(138,58,58,0.1);
+  }
+  .choice-btn.history-answer {
+    border-color: #5a8a3a;
+    background: rgba(90,138,58,0.05);
+  }
+  .choice-btn:disabled { cursor: default; }
+  .choice-label {
+    font-size: 12px;
+    color: var(--gold);
+    font-weight: bold;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* 揭示结果 */
+  .reveal-box {
+    margin-top: 24px;
+    padding: 20px;
+    background: rgba(201,168,76,0.04);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 2px;
+    display: none;
+  }
+  .reveal-box.show { display: block; }
+  .reveal-title { font-size: 12px; color: var(--gold); letter-spacing: 0.2em; margin-bottom: 8px; }
+  .reveal-text { font-size: 14px; color: var(--text); line-height: 1.8; }
+  .reveal-insight { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .hit-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .hit-badge.hit { background: rgba(90,138,58,0.2); color: #7ab05a; border: 1px solid rgba(90,138,58,0.3); }
+  .hit-badge.miss { background: rgba(138,58,58,0.2); color: #b07a7a; border: 1px solid rgba(138,58,58,0.3); }
+
+  .btn-next {
+    margin-top: 20px;
+    padding: 12px 32px;
+    background: transparent;
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold);
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 0.3em;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: none;
+  }
+  .btn-next.show { display: inline-block; }
+  .btn-next:hover { background: rgba(201,168,76,0.08); }
+
+  /* ===== 屏幕5：最终结果 ===== */
+  .result-wrap { max-width: 600px; width: 100%; text-align: center; }
+  .result-score-ring {
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    border: 2px solid rgba(201,168,76,0.4);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    margin: 0 auto 24px;
+  }
+  .score-num { font-size: 48px; color: var(--gold); line-height: 1; }
+  .score-total { font-size: 14px; color: var(--muted); }
+  .result-level {
+    font-size: 24px;
+    color: var(--gold);
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .result-hero { font-size: 14px; color: var(--muted); letter-spacing: 0.2em; margin-bottom: 32px; }
+  .verdict-box {
+    text-align: left;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(201,168,76,0.15);
+    padding: 28px;
+    border-radius: 2px;
+    font-size: 15px;
+    line-height: 2;
+    margin-bottom: 32px;
+    white-space: pre-wrap;
+  }
+  .btn-restart {
+    padding: 14px 48px;
+    background: transparent;
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold);
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 0.4em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-restart:hover { background: rgba(201,168,76,0.08); }
+
+  /* 选择后标记（无揭示） */
+  .choice-btn.selected-choice {
+    border-color: rgba(201,168,76,0.6);
+    background: rgba(201,168,76,0.08);
+  }
+
+  /* 结果页六幕回顾 */
+  .recap-section { width: 100%; text-align: left; margin-bottom: 32px; }
+  .recap-title {
+    font-size: 12px; color: var(--muted); letter-spacing: 0.4em;
+    text-align: center; margin-bottom: 16px;
+  }
+  .recap-item {
+    padding: 16px 20px;
+    border: 1px solid rgba(201,168,76,0.1);
+    border-radius: 2px;
+    margin-bottom: 10px;
+    background: rgba(255,255,255,0.015);
+  }
+  .recap-item.recap-hit { border-left: 3px solid #5a8a3a; }
+  .recap-item.recap-miss { border-left: 3px solid #8a3a3a; }
+  .recap-header { display: flex; gap: 10px; align-items: baseline; margin-bottom: 6px; flex-wrap: wrap; }
+  .recap-num { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+  .recap-scene-title { font-size: 13px; color: var(--text); flex: 1; }
+  .recap-badge-hit { font-size: 11px; color: #7ab05a; flex-shrink: 0; }
+  .recap-badge-miss { font-size: 11px; color: #b07a7a; flex-shrink: 0; }
+  .recap-result { font-size: 13px; color: var(--text); line-height: 1.8; }
+  .recap-insight { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .section-title {
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.4em;
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .divider {
+    width: 60px; height: 1px;
+    background: linear-gradient(to right, transparent, rgba(201,168,76,0.4), transparent);
+    margin: 0 auto 32px;
+  }
+
+  @media (max-width: 600px) {
+    .input-card { padding: 32px 24px; }
+    .input-row { grid-template-columns: 1fr 1fr; }
+    .scene-card { padding: 24px 20px; }
+    .figure-card { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 屏幕1：输入生辰 -->
+<div id="screen-input" class="screen active">
+  <h1 class="title-main">生前是谁</h1>
+  <p class="title-sub">以八字推命格 · 穿越历史本源</p>
+  <div class="input-card">
+    <div class="input-row">
+      <div class="input-group">
+        <label>出生年</label>
+        <input type="number" id="inp-year" placeholder="1998" min="1900" max="2025">
+      </div>
+      <div class="input-group">
+        <label>出生月</label>
+        <input type="number" id="inp-month" placeholder="6" min="1" max="12">
+      </div>
+    </div>
+    <div class="input-row">
+      <div class="input-group">
+        <label>出生日</label>
+        <input type="number" id="inp-day" placeholder="18" min="1" max="31">
+      </div>
+      <div class="input-group">
+        <label>出生时（24制）</label>
+        <input type="number" id="inp-hour" placeholder="12" min="0" max="23">
+      </div>
+    </div>
+    <p class="hour-note">不知道出生时辰，填12（午时）</p>
+    <button class="btn-primary" id="btn-start">推算命格</button>
+  </div>
+</div>
+
+<!-- 加载中 -->
+<div id="screen-loading" class="screen">
+  <p class="loading-text">推算命格中<span class="loading-dots"></span></p>
+</div>
+
+<!-- 屏幕2：八字揭示 -->
+<div id="screen-bazi" class="screen">
+  <p class="section-title">你的八字四柱</p>
+  <div class="bazi-display" id="bazi-display"></div>
+  <div class="divider"></div>
+  <p class="section-title">五行分布</p>
+  <div class="wuxing-bar" id="wuxing-bar"></div>
+  <div style="margin-top: 40px; text-align: center;">
+    <p id="bazi-mingge" style="font-size:14px; color:var(--muted); letter-spacing:0.2em; margin-bottom:8px;"></p>
+    <p id="bazi-xingge" style="font-size:16px; color:var(--gold); letter-spacing:0.2em;"></p>
+  </div>
+  <button class="btn-primary" id="btn-to-figure" style="margin-top:40px; width:200px;">进入前世 · 开始穿越</button>
+</div>
+
+<!-- 加载历史人物 -->
+<div id="screen-loading2" class="screen">
+  <p class="loading-text">正在召唤前世<span class="loading-dots"></span></p>
+</div>
+
+<!-- 屏幕3：历史人物 -->
+<div id="screen-figure" class="screen">
+  <p class="section-title">你的前世</p>
+  <div class="figure-card">
+    <div class="avatar-wrap">
+      <div id="avatar-container" class="avatar-placeholder">☯</div>
+      <div class="avatar-frame"></div>
+    </div>
+    <div class="figure-info">
+      <div class="figure-name" id="fig-name"></div>
+      <div class="figure-meta" id="fig-meta"></div>
+      <div class="match-badge" id="fig-grid"></div>
+      <div class="info-block">
+        <div class="info-label">命格匹配</div>
+        <div class="info-value" id="fig-reason"></div>
+      </div>
+      <div class="info-block">
+        <div class="info-label">历史简介</div>
+        <div class="info-value" id="fig-intro"></div>
+      </div>
+    </div>
+  </div>
+  <button class="btn-primary" id="btn-enter-history" style="margin-top:48px; width:240px;">穿越 · 开始体验</button>
+</div>
+
+<!-- 加载场景 -->
+<div id="screen-loading3" class="screen">
+  <p class="loading-text">生成历史场景<span class="loading-dots"></span></p>
+</div>
+
+<!-- 屏幕4：场景游戏 -->
+<div id="screen-game" class="screen">
+  <div class="scene-header">
+    <p class="section-title" id="game-hero-title"></p>
+    <div class="scene-progress" id="scene-progress"></div>
+  </div>
+  <div class="scene-card">
+    <div class="scene-tag" id="scene-tag"></div>
+    <div class="scene-context" id="scene-context"></div>
+    <div class="scene-moment" id="scene-moment"></div>
+    <div class="scene-question" id="scene-question"></div>
+    <div class="choices" id="choices-container"></div>
+    <div id="choice-tip" style="display:none; margin-top:16px; font-size:12px; color:var(--muted); letter-spacing:0.2em; text-align:center;"></div>
+    <button class="btn-next" id="btn-next">下一幕 →</button>
+  </div>
+</div>
+
+<!-- 加载结果 -->
+<div id="screen-loading4" class="screen">
+  <p class="loading-text">评定今生命格<span class="loading-dots"></span></p>
+</div>
+
+<!-- 屏幕5：最终结果 -->
+<div id="screen-result" class="screen">
+  <div class="result-wrap">
+    <p class="section-title">你的前世是</p>
+    <div class="figure-card" id="res-figure-card">
+      <div class="avatar-wrap">
+        <div id="res-avatar-container" class="avatar-placeholder">☯</div>
+        <div class="avatar-frame"></div>
+      </div>
+      <div class="figure-info">
+        <div class="figure-name" id="res-fig-name"></div>
+        <div class="figure-meta" id="res-fig-meta"></div>
+        <div class="match-badge" id="res-fig-grid"></div>
+        <div class="info-block">
+          <div class="info-label">命格匹配</div>
+          <div class="info-value" id="res-fig-reason"></div>
+        </div>
+        <div class="info-block">
+          <div class="info-label">历史简介</div>
+          <div class="info-value" id="res-fig-intro"></div>
+        </div>
+      </div>
+    </div>
+    <div class="divider" style="margin:40px 0;"></div>
+    <p class="section-title">今生命格评定</p>
+    <div class="result-score-ring">
+      <div class="score-num" id="res-score"></div>
+      <div class="score-total" id="res-total"></div>
+    </div>
+    <div class="result-level" id="res-level"></div>
+    <div class="result-hero" id="res-hero"></div>
+    <div class="verdict-box" id="res-verdict"></div>
+    <div class="recap-section" id="res-recap"></div>
+    <button class="btn-restart" onclick="restart()">再测一次</button>
+  </div>
+</div>
+
+<script>
+  // ===== 状态 =====
+  let gameState = {
+    bazi: null,
+    profile: null,
+    scenarios: [],
+    currentScene: 0,
+    choices: [],
+    score: 0,
+  };
+
+  // ===== 屏幕切换 =====
+  function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  // ===== 开始：提交生辰 =====
+  document.getElementById("btn-start").addEventListener("click", async () => {
+    const year  = parseInt(document.getElementById("inp-year").value);
+    const month = parseInt(document.getElementById("inp-month").value);
+    const day   = parseInt(document.getElementById("inp-day").value);
+    const hour  = parseInt(document.getElementById("inp-hour").value) || 12;
+
+    if (!year || !month || !day) {
+      alert("请完整填写出生年月日");
+      return;
+    }
+
+    showScreen("screen-loading");
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({year, month, day, hour}),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      gameState.bazi    = data.bazi;
+      gameState.profile = data.profile;
+      gameState.avatarUrl = data.avatar_url;
+
+      renderBazi(data.bazi);
+      showScreen("screen-bazi");
+    } catch(e) {
+      alert("推算失败：" + e.message);
+      showScreen("screen-input");
+    }
+  });
+
+  // ===== 渲染八字 =====
+  function renderBazi(bazi) {
+    const pillars = [
+      {label:"年柱", chars: bazi["年柱"]},
+      {label:"月柱", chars: bazi["月柱"]},
+      {label:"日柱", chars: bazi["日柱"]},
+      {label:"时柱", chars: bazi["时柱"]},
+    ];
+    const wx_colors = {金:"#c0c0a0", 木:"#5a8a3a", 水:"#3a6a8a", 火:"#8a3a3a", 土:"#8a6a3a"};
+    const ganWx = {甲:"木",乙:"木",丙:"火",丁:"火",戊:"土",己:"土",庚:"金",辛:"金",壬:"水",癸:"水"};
+
+    const container = document.getElementById("bazi-display");
+    container.innerHTML = "";
+    pillars.forEach((p, i) => {
+      const gan = p.chars[0], zhi = p.chars[1];
+      const ganColor = wx_colors[ganWx[gan]] || "#c9a84c";
+      const el = document.createElement("div");
+      el.className = "pillar";
+      el.innerHTML = `
+        <div class="pillar-label">${p.label}</div>
+        <div class="pillar-chars">
+          <div class="pillar-gan" style="color:${ganColor}; animation-delay:${i*0.15}s">${gan}</div>
+          <div class="pillar-zhi" style="animation-delay:${i*0.15+0.1}s">${zhi}</div>
+        </div>`;
+      container.appendChild(el);
+    });
+
+    // 五行分布
+    const wxBar = document.getElementById("wuxing-bar");
+    wxBar.innerHTML = "";
+    const wx = bazi["五行"];
+    Object.entries(wx).forEach(([k, v]) => {
+      const el = document.createElement("div");
+      el.className = "wx-item";
+      const dots = Array(v).fill(`<div class="wx-dot wx-${k}" style="background:${wx_colors[k]}"></div>`).join("");
+      el.innerHTML = `<div class="wx-dots">${dots || '<span style="color:var(--muted);font-size:10px">无</span>'}</div><div class="wx-name">${k}×${v}</div>`;
+      wxBar.appendChild(el);
+    });
+
+    document.getElementById("bazi-mingge").textContent = gameState.profile["命格"] || "";
+    document.getElementById("bazi-xingge").textContent = gameState.profile["性格"] || "";
+  }
+
+  // ===== 八字页直接加载场景（跳过人物揭示）=====
+  document.getElementById("btn-to-figure").addEventListener("click", async () => {
+    showScreen("screen-loading3");
+    const p = gameState.profile;
+    try {
+      const res = await fetch("/api/scenarios", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          hero: p["人物"],
+          dynasty: p["朝代"],
+          profile: p,
+          bazi_str: gameState.bazi["全字"],
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      gameState.scenarios = data.scenarios;
+      gameState.currentScene = 0;
+      gameState.choices = [];
+      gameState.score = 0;
+
+      // 不暴露人物名字
+      document.getElementById("game-hero-title").textContent = "你的前世 · 六个历史时刻";
+
+      renderProgress();
+      renderScene(0);
+      showScreen("screen-game");
+    } catch(e) {
+      alert("场景生成失败：" + e.message);
+      showScreen("screen-bazi");
+    }
+  });
+
+  // ===== 渲染进度 =====
+  function renderProgress() {
+    const container = document.getElementById("scene-progress");
+    container.innerHTML = "";
+    gameState.scenarios.forEach((_, i) => {
+      const dot = document.createElement("div");
+      dot.className = "progress-dot" + (i === gameState.currentScene ? " current" : i < gameState.currentScene ? " done" : "");
+      container.appendChild(dot);
+    });
+  }
+
+  // ===== 渲染场景 =====
+  function renderScene(idx) {
+    const s = gameState.scenarios[idx];
+    document.getElementById("scene-tag").textContent =
+      `第 ${idx+1} 幕 · ${s.year || ""} · 年约${s.age || ""}岁 · ${s.title || ""}`;
+    document.getElementById("scene-context").textContent = s.context || "";
+    document.getElementById("scene-moment").textContent = s.moment || "";
+    document.getElementById("scene-question").textContent = s.question || "";
+
+    const cc = document.getElementById("choices-container");
+    cc.innerHTML = "";
+    ["A","B","C"].forEach(letter => {
+      const btn = document.createElement("button");
+      btn.className = "choice-btn";
+      btn.dataset.choice = letter;
+      btn.innerHTML = `<span class="choice-label">${letter}</span><span>${s["choice_"+letter.toLowerCase()] || ""}</span>`;
+      btn.addEventListener("click", () => handleChoice(letter, s));
+      cc.appendChild(btn);
+    });
+
+    pendingChoice = null;
+    const isLast = idx === gameState.scenarios.length - 1;
+    document.getElementById("btn-next").textContent = isLast ? "揭晓命格 →" : "下一幕 →";
+    document.getElementById("btn-next").classList.remove("show");
+    const tip = document.getElementById("choice-tip");
+    tip.textContent = "";
+    tip.style.display = "none";
+  }
+
+  // 当前幕暂存的选项（未确认）
+  let pendingChoice = null;
+
+  // ===== 处理选择（只高亮，不锁定）=====
+  function handleChoice(letter, scene) {
+    pendingChoice = letter;
+
+    // 高亮选中项，其余取消高亮，按钮保持可点击
+    document.querySelectorAll(".choice-btn").forEach(btn => {
+      btn.classList.toggle("selected-choice", btn.dataset.choice === letter);
+    });
+
+    const tip = document.getElementById("choice-tip");
+    tip.textContent = "可重新选择 · 点击「下一幕」确认";
+    tip.style.display = "block";
+
+    document.getElementById("btn-next").classList.add("show");
+    document.getElementById("btn-next").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // ===== 下一场景（防重复点击）=====
+  let nextLocked = false;
+  document.getElementById("btn-next").addEventListener("click", async () => {
+    if (nextLocked) return;
+    if (!pendingChoice) return; // 必须先选一项
+
+    // 锁定选择，禁用按钮
+    const scene = gameState.scenarios[gameState.currentScene];
+    const letter = pendingChoice;
+    pendingChoice = null;
+
+    document.querySelectorAll(".choice-btn").forEach(btn => { btn.disabled = true; });
+
+    const hit = letter === scene.history_answer;
+    if (hit) gameState.score++;
+    gameState.choices.push({
+      player: letter,
+      history: scene.history_answer,
+      title: scene.title || "",
+      history_result: scene.history_result || "",
+      insight: scene.insight || "",
+      hit,
+    });
+
+    nextLocked = true;
+    gameState.currentScene++;
+    if (gameState.currentScene >= gameState.scenarios.length) {
+      // 游戏结束，获取结果
+      showScreen("screen-loading4");
+      try {
+        const p = gameState.profile;
+        const res = await fetch("/api/result", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            hero: p["人物"],
+            dynasty: p["朝代"],
+            profile: p,
+            bazi_str: gameState.bazi["全字"],
+            choices: gameState.choices,
+            score: gameState.score,
+          }),
+        });
+        const data = await res.json();
+        renderResult(data, p);
+        showScreen("screen-result");
+      } catch(e) {
+        alert("结果生成失败");
+        nextLocked = false;
+        showScreen("screen-game");
+      }
+    } else {
+      renderProgress();
+      renderScene(gameState.currentScene);
+      nextLocked = false;
+    }
+  });
+
+  // ===== 渲染结果 =====
+  function renderResult(data, profile) {
+    // 揭示历史人物
+    document.getElementById("res-fig-name").textContent = profile["人物"] || "";
+    document.getElementById("res-fig-meta").textContent =
+      `${profile["朝代"] || ""} · ${profile["生卒"] || ""} · ${profile["职业"] || ""}`;
+    document.getElementById("res-fig-grid").textContent = profile["格局"] || "";
+    document.getElementById("res-fig-reason").textContent = profile["匹配理由"] || "";
+    document.getElementById("res-fig-intro").textContent = profile["人物简介"] || "";
+    const avatarCont = document.getElementById("res-avatar-container");
+    const img = document.createElement("img");
+    img.className = "avatar-img";
+    img.src = gameState.avatarUrl;
+    img.alt = profile["人物"];
+    img.onerror = () => { avatarCont.innerHTML = "☯"; };
+    avatarCont.innerHTML = "";
+    avatarCont.appendChild(img);
+
+    // 分数与评定
+    document.getElementById("res-score").textContent = data.score;
+    document.getElementById("res-total").textContent = `/ ${data.total}`;
+    document.getElementById("res-level").textContent = data.level || "";
+    document.getElementById("res-hero").textContent =
+      `与 ${profile["朝代"]}·${profile["人物"]} 的命格契合度`;
+    document.getElementById("res-verdict").textContent = data.verdict || "";
+
+    // 六幕回顾 — 统一揭示
+    const recap = document.getElementById("res-recap");
+    recap.innerHTML = `<div class="recap-title">— 六幕回顾 —</div>` +
+      gameState.choices.map((c, i) => `
+        <div class="recap-item ${c.hit ? 'recap-hit' : 'recap-miss'}">
+          <div class="recap-header">
+            <span class="recap-num">第${i+1}幕</span>
+            <span class="recap-scene-title">${c.title}</span>
+            <span class="${c.hit ? 'recap-badge-hit' : 'recap-badge-miss'}">
+              ${c.hit ? '✓ 与历史相同' : `✗ 历史选了 ${c.history}`}
+            </span>
+          </div>
+          <div class="recap-result">${c.history_result}</div>
+          <div class="recap-insight">${c.insight}</div>
+        </div>`
+      ).join('');
+  }
+
+  // ===== 重新开始 =====
+  function restart() {
+    gameState = { bazi:null, profile:null, scenarios:[], currentScene:0, choices:[], score:0 };
+    document.getElementById("inp-year").value = "";
+    document.getElementById("inp-month").value = "";
+    document.getElementById("inp-day").value = "";
+    document.getElementById("inp-hour").value = "";
+    showScreen("screen-input");
+  }
+</script>
+</body>
+</html>

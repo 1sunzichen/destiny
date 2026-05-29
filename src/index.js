@@ -291,7 +291,13 @@ async function sendEmail(env, { subject, html }) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const apiKey = env.DEEPSEEK_API_KEY;
+
+    // 所有密钥统一从 API_KEY JSON 变量读取
+    let cfg = {};
+    try { cfg = JSON.parse(env.API_KEY || "{}"); } catch {}
+    // eenv 合并 JSON 配置 + KV/静态资源绑定
+    const eenv = { ...cfg, PAYMENTS: env.PAYMENTS, ASSETS: env.ASSETS };
+    const apiKey = eenv.DEEPSEEK_API_KEY;
 
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -305,7 +311,7 @@ export default {
 
     try {
       if (request.method === "GET") {
-        if (url.pathname === "/api/pay/status") return await handlePayStatus(url, env);
+        if (url.pathname === "/api/pay/status") return await handlePayStatus(url, eenv);
       }
 
       if (request.method === "POST") {
@@ -313,13 +319,13 @@ export default {
         if (url.pathname === "/api/analyze")     return await handleAnalyze(body, apiKey);
         if (url.pathname === "/api/scenarios")   return await handleScenarios(body, apiKey);
         if (url.pathname === "/api/result")      return await handleResult(body, apiKey);
-        if (url.pathname === "/api/pay/create")  return await handlePayCreate(body, env);
-        if (url.pathname === "/api/pay/confirm") return await handlePayConfirm(body, env);
+        if (url.pathname === "/api/pay/create")  return await handlePayCreate(body, eenv);
+        if (url.pathname === "/api/pay/confirm") return await handlePayConfirm(body, eenv);
       }
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
     }
 
-    return env.ASSETS.fetch(request);
+    return eenv.ASSETS.fetch(request);
   },
 };

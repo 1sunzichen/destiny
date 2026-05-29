@@ -279,7 +279,7 @@ async function sendEmail(env, { subject, html }) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "生前是谁 <noreply@oldphoto.site>",
+      from: "生前是谁 <onboarding@resend.dev>",
       to: env.ADMIN_EMAIL,
       subject,
       html,

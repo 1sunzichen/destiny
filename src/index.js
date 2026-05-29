@@ -294,7 +294,10 @@ export default {
 
     // 优先从 API_KEY JSON 读取，否则回退到单独变量
     let cfg = {};
-    try { cfg = JSON.parse(env.API_KEY || "{}"); } catch {}
+    try {
+      const raw = env.API_KEY;
+      cfg = (typeof raw === "object" && raw !== null) ? raw : JSON.parse(raw || "{}");
+    } catch {}
     const eenv = {
       DEEPSEEK_API_KEY: env.DEEPSEEK_API_KEY,
       ADMIN_SECRET:     env.ADMIN_SECRET,
@@ -306,6 +309,17 @@ export default {
       ASSETS:   env.ASSETS,
     };
     const apiKey = eenv.DEEPSEEK_API_KEY;
+
+    // 调试端点（临时）
+    if (url.pathname === "/api/debug") {
+      return Response.json({
+        api_key_type: typeof env.API_KEY,
+        api_key_set: !!env.API_KEY,
+        cfg_keys: Object.keys(cfg),
+        deepseek_found: !!eenv.DEEPSEEK_API_KEY,
+        resend_found: !!eenv.RESEND_API_KEY,
+      });
+    }
 
     if (request.method === "OPTIONS") {
       return new Response(null, {

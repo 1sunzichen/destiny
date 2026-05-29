@@ -291,34 +291,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 优先从 API_KEY JSON 读取，否则回退到单独变量
-    let cfg = {};
-    try {
-      const raw = env.API_KEY;
-      cfg = (typeof raw === "object" && raw !== null) ? raw : JSON.parse(raw || "{}");
-    } catch {}
-    const eenv = {
-      DEEPSEEK_API_KEY: env.DEEPSEEK_API_KEY,
-      ADMIN_SECRET:     env.ADMIN_SECRET,
-      ADMIN_EMAIL:      env.ADMIN_EMAIL,
-      BASE_URL:         env.BASE_URL,
-      RESEND_API_KEY:   env.RESEND_API_KEY,
-      ...cfg,
-      PAYMENTS: env.PAYMENTS,
-      ASSETS:   env.ASSETS,
-    };
-    const apiKey = eenv.DEEPSEEK_API_KEY;
-
-    // 调试端点（临时）
-    if (url.pathname === "/api/debug") {
-      return Response.json({
-        api_key_type: typeof env.API_KEY,
-        api_key_set: !!env.API_KEY,
-        cfg_keys: Object.keys(cfg),
-        deepseek_found: !!eenv.DEEPSEEK_API_KEY,
-        resend_found: !!eenv.RESEND_API_KEY,
-      });
-    }
+    const apiKey = env.DEEPSEEK_API_KEY;
 
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -332,7 +305,7 @@ export default {
 
     try {
       if (request.method === "GET") {
-        if (url.pathname === "/api/pay/status") return await handlePayStatus(url, eenv);
+        if (url.pathname === "/api/pay/status") return await handlePayStatus(url, env);
       }
 
       if (request.method === "POST") {
@@ -340,13 +313,13 @@ export default {
         if (url.pathname === "/api/analyze")     return await handleAnalyze(body, apiKey);
         if (url.pathname === "/api/scenarios")   return await handleScenarios(body, apiKey);
         if (url.pathname === "/api/result")      return await handleResult(body, apiKey);
-        if (url.pathname === "/api/pay/create")  return await handlePayCreate(body, eenv);
-        if (url.pathname === "/api/pay/confirm") return await handlePayConfirm(body, eenv);
+        if (url.pathname === "/api/pay/create")  return await handlePayCreate(body, env);
+        if (url.pathname === "/api/pay/confirm") return await handlePayConfirm(body, env);
       }
     } catch (e) {
       return Response.json({ error: e.message }, { status: 500 });
     }
 
-    return eenv.ASSETS.fetch(request);
+    return env.ASSETS.fetch(request);
   },
 };

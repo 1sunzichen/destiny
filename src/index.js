@@ -323,6 +323,10 @@ export default {
       if (request.method === "GET") {
         if (url.pathname === "/api/pay/status")  return await handlePayStatus(url, env);
         if (url.pathname === "/api/pay/confirm") return await handlePayConfirmGet(url, env);
+        if (url.pathname === "/api/test-email")  {
+          await sendEmail(env, { subject: "测试邮件", html: "<h1>邮件发送正常！</h1>" });
+          return Response.json({ ok: true });
+        }
       }
 
       if (request.method === "POST") {

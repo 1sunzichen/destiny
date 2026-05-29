@@ -229,7 +229,7 @@ async function handlePayCreate(body, env) {
 
   // 发邮件通知
   const baseUrl = "https://destiny.oldphoto.site";
-  const confirmUrl = `${baseUrl}/api/pay/confirm?id=${orderId}&secret=${env.ADMIN_SECRET}`;
+  const confirmUrl = `${baseUrl}/api/pay/confirm?id=${orderId}&secret=2026`;
   await sendEmail(env, {
     subject: `【生前是谁】新订单 ${orderId}`,
     html: `
@@ -260,7 +260,7 @@ async function handlePayStatus(url, env) {
 async function handlePayConfirm(body, env) {
   const { id: orderId, secret } = body;
   if (!orderId || !secret) return Response.json({ error: "参数缺失" }, { status: 400 });
-  if (secret !== env.ADMIN_SECRET) return Response.json({ error: "密码错误" }, { status: 403 });
+  if (secret !== "2026") return Response.json({ error: "密码错误" }, { status: 403 });
   const raw = await env.PAYMENTS.get(orderId);
   if (!raw) return Response.json({ error: "订单不存在" }, { status: 404 });
   const order = JSON.parse(raw);

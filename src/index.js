@@ -56,6 +56,7 @@ function calcBazi(year, month, day, hour) {
 
 // ====== DeepSeek 调用 ======
 async function askJson(prompt, apiKey, maxTokens = 1200) {
+  if (!apiKey) throw new Error("未配置 DEEPSEEK_API_KEY");
   const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -69,6 +70,7 @@ async function askJson(prompt, apiKey, maxTokens = 1200) {
     }),
   });
   const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || `DeepSeek ${res.status}`);
   const raw = data.choices[0].message.content;
   try {
     const s = raw.indexOf("{");
@@ -80,6 +82,7 @@ async function askJson(prompt, apiKey, maxTokens = 1200) {
 }
 
 async function askText(prompt, apiKey, maxTokens = 600) {
+  if (!apiKey) throw new Error("未配置 DEEPSEEK_API_KEY");
   const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -93,6 +96,7 @@ async function askText(prompt, apiKey, maxTokens = 600) {
     }),
   });
   const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || `DeepSeek ${res.status}`);
   return data.choices[0].message.content;
 }
 
@@ -229,9 +233,9 @@ export default {
     if (request.method === "POST") {
       try {
         const body = await request.json();
-        if (url.pathname === "/api/analyze")   return handleAnalyze(body, apiKey);
-        if (url.pathname === "/api/scenarios") return handleScenarios(body, apiKey);
-        if (url.pathname === "/api/result")    return handleResult(body, apiKey);
+        if (url.pathname === "/api/analyze")   return await handleAnalyze(body, apiKey);
+        if (url.pathname === "/api/scenarios") return await handleScenarios(body, apiKey);
+        if (url.pathname === "/api/result")    return await handleResult(body, apiKey);
       } catch (e) {
         return Response.json({ error: e.message }, { status: 500 });
       }

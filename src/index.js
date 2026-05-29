@@ -292,11 +292,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 所有密钥统一从 API_KEY JSON 变量读取
+    // 优先从 API_KEY JSON 读取，否则回退到单独变量
     let cfg = {};
     try { cfg = JSON.parse(env.API_KEY || "{}"); } catch {}
-    // eenv 合并 JSON 配置 + KV/静态资源绑定
-    const eenv = { ...cfg, PAYMENTS: env.PAYMENTS, ASSETS: env.ASSETS };
+    const eenv = {
+      DEEPSEEK_API_KEY: env.DEEPSEEK_API_KEY,
+      ADMIN_SECRET:     env.ADMIN_SECRET,
+      ADMIN_EMAIL:      env.ADMIN_EMAIL,
+      BASE_URL:         env.BASE_URL,
+      RESEND_API_KEY:   env.RESEND_API_KEY,
+      ...cfg,
+      PAYMENTS: env.PAYMENTS,
+      ASSETS:   env.ASSETS,
+    };
     const apiKey = eenv.DEEPSEEK_API_KEY;
 
     if (request.method === "OPTIONS") {
